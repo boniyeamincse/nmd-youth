@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // In development: sqlite (file:./dev.db). For Vercel Production: switch to "postgresql" and set DATABASE_URL
+  url      = env("DATABASE_URL")
+}
+
+// 01. Foundation & Member Management (Users & Admins)
+model User {
+  id               String        @id @default(cuid())
+  nameBn           String
+  nameEn           String
+  email            String        @unique
+  phone            String        @unique
+  passwordHash     String?
+  role             String        @default("VOLUNTEER") // SUPER_ADMIN, MODERATOR, EDITOR, MEMBER, VOLUNTEER
+  status           String        @default("PENDING")   // PENDING, APPROVED, REJECTED, SUSPENDED
+  memberCode       String?       @unique               // e.g. NDM-Y-2026-0001
+  nidOrBirthCert   String?
+  institution      String?
+  bloodGroup       String?
+  presentAddress   String?
+  district         String
+  division         String
+  wingInterest     String?
+  skills           String?
+  avatarUrl        String?
+  appliedAt            DateTime            @default(now())
+  verifiedAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @default(now()) @updatedAt
+  committeeAssignments CommitteeMember[]
+}
+
+// 02. Organization Structure (Districts & Campus Chapters)
+model Chapter {
+  id            String          @id @default(cuid())
+  nameBn        String
+  nameEn        String
+  type          String          @default("DISTRICT") // DISTRICT, CAMPUS
+  division      String?
+  convener      String
+  phone         String
+  membersCount  Int             @default(0)
+  status        String          @default("ACTIVE")   // ACTIVE, AD_HOC
+  createdAt     DateTime        @default(now())
+}
+
+// 05. Organizational Governance: Committee Entity
+model Committee {
+  id              String             @id @default(cuid())
+  nameBn          String
+  nameEn          String
+  type            String             @default("DISTRICT") // CENTRAL, DIVISION, DISTRICT, UPAZILA, UNION, WARD, CAMPUS, SPECIAL, TEMPORARY
+  unitName        String             // e.g. "ঢাকা জেলা শাখা", "ঢাকা বিশ্ববিদ্যালয়", "চট্টগ্রাম বিভাগ"
+  chapterId       String?
+  formationMethod String?            @default("CONVENING_ASSEMBLY") // ELECTION, SELECTION, CONVENING_ASSEMBLY, AD_HOC_APPOINTMENT, CENTRAL_DIRECTIVE
+  description     String?
+  startDate       String
+  endDate         String
+  status          String             @default("DRAFT") // DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, ACTIVE, EXPIRED, ARCHIVED, REJECTED
+  resolutionNo    String             @unique
+  approvedBy      String?
+  approvedAt      DateTime?
+  approvalNote    String?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @default(now()) @updatedAt
+
+  members         CommitteeMember[]
+  histories       CommitteeHistory[]
+}
+
+// Database-driven Committee Positions
+model CommitteePosition {
+  id          String            @id @default(cuid())
+  nameBn      String            // e.g. "সভাপতি", "আহ্বায়ক", "সাধারণ সম্পাদক", "সদস্য সচিব"
+  nameEn      String            // e.g. "President", "Convener", "General Secretary", "Member Secretary"
+  category    String            @default("GENERAL") // GENERAL, CAMPUS, AD_HOC
+  rank        Int               @default(1)
+  maxHolders  Int               @default(1)
+  isRequired  Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+
+  assignments CommitteeMember[]
+}
+
+// Assignment of a Member to a Committee Position
+model CommitteeMember {
+  id              String            @id @default(cuid())
+  committeeId     String
+  committee       Committee         @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  memberId        String
+  user            User              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  positionId      String
+  position        CommitteePosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  appointmentType String            @default("REGULAR") // REGULAR, CO_OPTED, INTERIM
+  startDate       String
+  endDate         String?
+  status          String            @default("ACTIVE") // ACTIVE, RELIEVED, SUSPENDED, RESIGNED
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+
+  @@unique([committeeId, memberId, positionId])
+}
+
+// Historical changes and granular audits for Committee
+model CommitteeHistory {
+  id          String    @id @default(cuid())
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  eventType   String    // CREATED, STATUS_CHANGE, MEMBER_ASSIGNED, MEMBER_REMOVED, POSITION_CHANGED, APPROVED, REJECTED, ARCHIVED
+  changedBy   String    // Admin email
+  description String
+  metadata    String?   // JSON representation or details
+  createdAt   DateTime  @default(now())
+}
+
+
+// 06. Events & Assembly
+model Event {
+  id              String          @id @default(cuid())
+  titleBn         String
+  titleEn         String
+  slug            String          @unique
+  summaryBn       String
+  summaryEn       String
+  descriptionBn   String
+  descriptionEn   String
+  venueBn         String
+  venueEn         String
+  date            String
+  time            String
+  isUpcoming      Boolean         @default(true)
+  registeredCount Int             @default(0)
+  createdAt       DateTime        @default(now())
+  rsvps           EventRsvp[]
+}
+
+// Event Attendees RSVP
+model EventRsvp {
+  id            String          @id @default(cuid())
+  eventId       String
+  event         Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String
+  email         String?
+  ticketCode    String          @unique
+  checkedIn     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+}
+
+// 07. Task & Operations Workflow
+model Task {
+  id            String          @id @default(cuid())
+  titleBn       String
+  titleEn       String
+  assignedToBn  String
+  wing          String
+  priority      String          @default("HIGH") // URGENT, HIGH, MEDIUM
+  deadline      String
+  status        String          @default("TODO") // TODO, IN_PROGRESS, REVIEW, COMPLETED
+  progress      Int             @default(0)
+  createdAt     DateTime        @default(now())
+}
+
+// 08. Notices, Statements & Press Releases
+model Notice {
+  id            String          @id @default(cuid())
+  titleBn       String
+  titleEn       String
+  slug          String          @unique
+  contentBn     String
+  contentEn     String
+  category      String          @default("PRESS_RELEASE") // PRESS_RELEASE, STATEMENT, MOVEMENT_ACTION, ORGANIZATIONAL_MEMO
+  isPinned      Boolean         @default(false)
+  pdfUrl        String?
+  publishedAt   DateTime        @default(now())
+}
+
+// 09. Official Documents & Brand Archive
+model Document {
+  id            String          @id @default(cuid())
+  docCode       String          @unique
+  titleBn       String
+  titleEn       String
+  category      String          @default("RESOLUTION") // CONSTITUTION, RESOLUTION, BRAND_ASSET, CIRCULAR_FORM
+  fileType      String          @default("PDF")
+  fileSize      String          @default("1.0 MB")
+  version       String          @default("১.০")
+  publishedDate String
+  downloadUrl   String          @default("#")
+  createdAt     DateTime        @default(now())
+}
+
+// 10. Finance & Treasury
+model FinanceRecord {
+  id            String          @id @default(cuid())
+  voucherNo     String          @unique
+  titleBn       String
+  type          String          @default("INCOME") // INCOME, EXPENSE
+  category      String          // MEMBERSHIP_DUES, DONATION, EVENT_EXPENSE, OFFICE_RENT, MEDIA_CAMPAIGN
+  amount        Float           @default(0)
+  date          String
+  recordedBy    String
+  status        String          @default("VERIFIED") // VERIFIED, PENDING
+  createdAt     DateTime        @default(now())
+}
+
+// 11. Future Leaders Academy (Training Courses)
+model TrainingCourse {
+  id                   String   @id @default(cuid())
+  code                 String   @unique
+  titleBn              String
+  titleEn              String
+  instructorBn         String
+  duration             String
+  enrolledCount        Int      @default(0)
+  status               String   @default("OPEN") // OPEN, ONGOING, COMPLETED
+  modulesCount         Int      @default(6)
+  certificateAvailable Boolean  @default(true)
+  createdAt            DateTime @default(now())
+}
+
+// 12. Volunteers & Emergency Blood Donors
+model VolunteerDonor {
+  id               String       @id @default(cuid())
+  nameBn           String
+  bloodGroup       String       // A+, A-, B+, B-, O+, O-, AB+, AB-
+  district         String
+  upazila          String
+  phone            String       @unique
+  lastDonationDate String
+  isAvailable      Boolean      @default(true)
+  disasterSquad    Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+}
+
+// 13. Disciplinary & Grievance Cell
+model Grievance {
+  id            String          @id @default(cuid())
+  caseId        String          @unique
+  titleBn       String
+  againstBn     String
+  filedBy       String          @default("গোপন অভিযোগ সেল")
+  chapterBn     String
+  date          String
+  priority      String          @default("HIGH") // HIGH, MEDIUM, LOW
+  status        String          @default("OPEN") // OPEN, INVESTIGATION, HEARING, RESOLVED
+  summaryBn     String
+  createdAt     DateTime        @default(now())
+}
+
+// 16. Immutable Audit Trail
+model AuditLog {
+  id            String          @id @default(cuid())
+  action        String
+  admin         String
+  target        String
+  timestamp     String
+  type          String          @default("info") // success, warning, info, danger
+  createdAt     DateTime        @default(now())
+}
