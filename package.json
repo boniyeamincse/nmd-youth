@@ -1,9 +1,10 @@
 {
-  "name": "youth-movement-ndm",
+  "name": "ndm-youth",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "rm -rf .next && next dev",
+    "postinstall": "prisma generate",
     "build": "prisma generate && rm -rf .next && next build",
     "start": "next start",
     "lint": "next lint"

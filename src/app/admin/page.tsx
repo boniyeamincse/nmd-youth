@@ -90,6 +90,7 @@ type ActiveModule =
   | "overview"
   | "auth"
   | "org"
+  | "chapters"
   | "members"
   | "verification"
   | "committees"
